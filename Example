@@ -1,0 +1,7 @@
+# Set config
+curl -X POST http://localhost:4100/set \
+  -H "Content-Type: application/json" \
+  -d '{"key":"db_url","value":"postgres://user:pass@localhost/db"}'
+
+# Get config
+curl http://localhost:4100/get/db_url
