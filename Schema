@@ -1,0 +1,9 @@
+CREATE TABLE configs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  env TEXT NOT NULL,
+  service TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  encrypted BOOLEAN NOT NULL
+);
