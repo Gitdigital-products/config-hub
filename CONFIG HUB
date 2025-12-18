@@ -1,0 +1,332 @@
+🚀 PHASE A — CONFIG HUB (HARD DROP)
+
+A0. Create the branch (do not skip)
+
+Git checkout -b feat/platform-core
+
+
+
+A1. Final Cargo.toml
+
+Replace / merge yours with this baseline:
+
+[package]
+Name = “config-hub”
+Version = “0.1.0”
+Edition = “2021”
+
+[dependencies]
+Axum = { version = “0.7”, features = [“macros”] }
+Tokio = { version = “1”, features = [“full”] }
+Serde = { version = “1”, features = [“derive”] }
+Serde_json = “1”
+Sqlx = { version = “0.7”, features = [“sqlite”, “runtime-tokio”] }
+Async-trait = “0.1”
+Anyhow = “1.0”
+Aes-gcm = “0.10”
+Base64 = “0.22”
+Rand = “0.8”
+Tower-http = { version = “0.5”, features = [“trace”] }
+Tokio-stream = “0.1”
+Futures-util = “0.3”
+
+Commit:
+
+Git commit -am “chore: finalize core dependencies”
+
+
+
+A2. Database Schema (REAL persistence)
+
+Create migrations/001_init.sql
+
+CREATE TABLE configs (
+  Id INTEGER PRIMARY KEY AUTOINCREMENT,
+  Tenant_id TEXT NOT NULL,
+  Service TEXT NOT NULL,
+  Env TEXT NOT NULL,
+  Key TEXT NOT NULL,
+  Value TEXT NOT NULL,
+  Version INTEGER NOT NULL,
+  Encrypted BOOLEAN NOT NULL,
+  Created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_lookup
+ON configs (tenant_id, service, env, key);
+
+Run locally:
+
+Sqlite3 config.db < migrations/001_init.sql
+
+Commit:
+
+Git add migrations
+Git commit -m “db: initial multi-tenant config schema”
+
+
+
+A3. Core Model
+
+Src/models.rs
+
+Use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+Pub struct ConfigItem {
+    Pub tenant_id: String,
+    Pub service: String,
+    Pub env: String,
+    Pub key: String,
+    Pub value: String,
+    Pub version: i32,
+    Pub encrypted: bool,
+}
+
+
+
+A4. Encryption (secrets solved)
+
+Src/crypto/encrypt.rs
+
+Use aes_gcm::{Aes256Gcm, Nonce};
+Use aes_gcm::aead::{Aead, KeyInit};
+Use base64::{encode, decode};
+Use rand::RngCore;
+
+Pub fn encrypt(value: &str, key: &[u8]) -> String {
+    Let cipher = Aes256Gcm::new_from_slice(key).unwrap();
+
+    Let mut nonce = [0u8; 12];
+    Rand::thread_rng().fill_bytes(&mut nonce);
+
+    Let encrypted = cipher.encrypt(
+        Nonce::from_slice(&nonce),
+        Value.as_bytes(),
+    ).unwrap();
+
+    Format!(“{}:{}”, encode(nonce), encode(encrypted))
+}
+
+Pub fn decrypt(value: &str, key: &[u8]) -> String {
+    Let cipher = Aes256Gcm::new_from_slice(key).unwrap();
+    Let parts: Vec<&str> = value.split(‘:’).collect();
+
+    Let nonce = decode(parts[0]).unwrap();
+    Let data = decode(parts[1]).unwrap();
+
+    Let decrypted = cipher.decrypt(
+        Nonce::from_slice(&nonce),
+        Data.as_ref(),
+    ).unwrap();
+
+    String::from_utf8(decrypted).unwrap()
+}
+
+Commit:
+
+Git add src/crypto
+Git commit -m “feat: AES-GCM encryption for secrets”
+
+
+
+A5. Storage Layer (swap-proof)
+
+Src/store/trait.rs
+
+Use async_trait::async_trait;
+Use crate::models::ConfigItem;
+
+#[async_trait]
+Pub trait ConfigStore: Send + Sync {
+    Async fn set(&self, item: ConfigItem) -> anyhow::Result<()>;
+    Async fn list(&self, tenant: &str, service: &str, env: &str)
+	Anyhow::Result<Vec<ConfigItem>>;
+}
+
+Src/store/sqlite.rs
+
+Use sqlx::SqlitePool;
+Use async_trait::async_trait;
+Use crate::{models::ConfigItem, store::trait::ConfigStore};
+
+Pub struct SqliteStore {
+    Pub pool: SqlitePool,
+}
+
+#[async_trait]
+Impl ConfigStore for SqliteStore {
+    Async fn set(&self, item: ConfigItem) -> anyhow::Result<()> {
+        Sqlx::query!(
+            R#”
+            INSERT INTO configs
+            (tenant_id, service, env, key, value, version, encrypted)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            “#,
+            Item.tenant_id,
+            Item.service,
+            Item.env,
+            Item.key,
+            Item.value,
+            Item.version,
+            Item.encrypted
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    Async fn list(
+        &self,
+        Tenant: &str,
+        Service: &str,
+        Env: &str,
+    ) -> anyhow::Result<Vec<ConfigItem>> {
+        Let rows = sqlx::query_as!(
+            ConfigItem,
+            R#”
+            SELECT tenant_id, service, env, key, value, version, encrypted
+            FROM configs
+            WHERE tenant_id = ? AND service = ? AND env = ?
+            ORDER BY version DESC
+            “#,
+            Tenant,
+            Service,
+            Env
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+}
+
+Commit:
+
+Git add src/store
+Git commit -m “feat: sqlite-backed config store”
+
+
+
+A6. API + Live Reload (this is the flex)
+
+Src/routes/configs.rs
+
+Use axum::{Json, extract::State};
+Use std::sync::Arc;
+Use tokio::sync::broadcast;
+Use crate::{models::ConfigItem, store::trait::ConfigStore};
+
+#[derive(Clone)]
+Pub struct AppState {
+    Pub store: Arc<dyn ConfigStore>,
+    Pub tx: broadcast::Sender<ConfigItem>,
+}
+
+Pub async fn set_config(
+    State(state): State<AppState>,
+    Json(item): Json<ConfigItem>,
+) -> &’static str {
+    State.store.set(item.clone()).await.unwrap();
+    Let _ = state.tx.send(item);
+    “ok”
+}
+
+Commit:
+
+Git add src/routes
+Git commit -m “feat: config write API + live reload broadcast”
+
+
+
+A7. Docker + CI (production switch)
+
+Dockerfile
+
+FROM rust:1.76 as builder
+WORKDIR /app
+COPY . .
+RUN cargo build –release
+
+FROM debian:bookworm-slim
+COPY –from=builder /app/target/release/config-hub /usr/local/bin/config-hub
+CMD [“config-hub”]
+
+.github/workflows/ci.yml
+
+Name: CI
+On: [push]
+Jobs:
+  Build:
+    Runs-on: ubuntu-latest
+    Steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build –release
+
+Commit:
+
+Git add Dockerfile .github
+Git commit -m “infra: docker + CI pipeline”
+
+
+
+⚡ PHASE B — CLIENT SDK (RUST)
+
+Create repo:
+Config-hub-client-rust
+
+Src/lib.rs
+
+Pub struct ConfigClient {
+    Pub base: String,
+    Pub api_key: String,
+}
+
+Impl ConfigClient {
+    Pub async fn list(
+        &self,
+        Tenant: &str,
+        Service: &str,
+        Env: &str,
+    ) -> serde_json::Value {
+        Reqwest::Client::new()
+            .get(format!(
+                “{}/configs/{}/{}/{}”,
+                Self.base, tenant, service, env
+            ))
+            .bearer_auth(&self.api_key)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap()
+    }
+}
+
+This gets wired into AI Docs Writer next.
+
+
+
+🧠 PHASE C — AI DOCS WRITER (IMMEDIATE ROI)
+
+Inside AI Docs Writer:
+
+Let client = ConfigClient {
+    Base: http://config-hub.into(),
+    Api_key: std::env::var(“CONFIG_HUB_KEY”).unwrap(),
+};
+
+Let configs = client
+    .list(“gitdigital”, “ai-docs-writer”, “prod”)
+    .await;
+
+No .env.
+No redeploys.
+No config drift.
+
+
+
+
