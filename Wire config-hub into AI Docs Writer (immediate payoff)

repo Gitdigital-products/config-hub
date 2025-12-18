@@ -1,0 +1,53 @@
+This is the fastest win because it proves value today.
+
+Startup flow for AI Docs Writer
+
+At app boot:
+
+1. Fetch configs from config-hub
+
+
+2. Store them in memory
+
+
+3. Subscribe to live updates
+
+
+4. Hot-reload without restart
+
+
+
+Example (Rust client usage inside AI Docs Writer)
+
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+
+type ConfigMap = Arc<RwLock<HashMap<String, String>>>;
+
+async fn load_initial_config(configs: ConfigMap) {
+    let res = reqwest::get(
+        "http://config-hub/configs/ai-docs-writer/prod"
+    ).await.unwrap();
+
+    let items: Vec<ConfigItem> = res.json().await.unwrap();
+
+    let mut map = configs.write().unwrap();
+    for item in items {
+        map.insert(item.key, item.value);
+    }
+}
+
+Then your app never reads env vars again:
+
+let db_url = configs.read().unwrap().get("DATABASE_URL").unwrap();
+
+This alone:
+
+removes .env sprawl
+
+removes redeploys
+
+removes config drift
+
+
+That’s operational gravity disappearing.
