@@ -1,0 +1,291 @@
+This drop includes 3 things:
+
+1. Node / Bun SDK
+
+
+2. Stripe → tenant provisioning
+
+
+3. v1 dashboard (no fluff, just control)
+
+
+
+No philosophy. Just the build.
+
+
+---
+
+🔥 DROP 2 — DISTRIBUTION + MONETIZATION
+
+PART 1 — CONFIG HUB NODE / BUN SDK (reach multiplier)
+
+Repo name:
+
+config-hub-client-js
+
+package.json
+
+{
+  "name": "@gitdigital/config-hub",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "eventsource-parser": "^1.1.0"
+  }
+}
+
+
+---
+
+index.js
+
+export class ConfigHubClient {
+  constructor({ baseUrl, apiKey }) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+  }
+
+  async list({ tenant, service, env }) {
+    const res = await fetch(
+      `${this.baseUrl}/configs/${tenant}/${service}/${env}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      }
+    );
+
+    if (!res.ok) throw new Error("Config fetch failed");
+    return res.json();
+  }
+
+  watch({ service, env, onChange }) {
+    const es = new EventSource(
+      `${this.baseUrl}/watch/${service}/${env}`
+    );
+
+    es.onmessage = (event) => {
+      onChange(JSON.parse(event.data));
+    };
+
+    return () => es.close();
+  }
+}
+
+Usage (Node, Bun, Deno)
+
+const client = new ConfigHubClient({
+  baseUrl: "https://config.gitdigital.io",
+  apiKey: process.env.CONFIG_HUB_KEY,
+});
+
+const configs = await client.list({
+  tenant: "gitdigital",
+  service: "ai-docs-writer",
+  env: "prod",
+});
+
+Now Config Hub works everywhere:
+
+Node backends
+
+Serverless
+
+CLIs
+
+GitHub Actions
+
+
+That’s reach.
+
+Commit this SDK and tag v0.1.0.
+
+
+---
+
+💳 PART 2 — STRIPE → TENANT PROVISIONING (money pipe)
+
+This is where infra becomes SaaS.
+
+Stripe flow (minimal, clean)
+
+Trigger: Stripe checkout success webhook
+Action: Create tenant + API key
+Output: Dashboard credentials
+
+
+---
+
+DB tables to add
+
+CREATE TABLE tenants (
+  id TEXT PRIMARY KEY,
+  plan TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE api_keys (
+  key TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  scope TEXT NOT NULL
+);
+
+
+---
+
+Webhook handler (Rust, Axum)
+
+pub async fn stripe_webhook(
+    Json(payload): Json<StripeEvent>,
+) -> &'static str {
+    let tenant_id = uuid::Uuid::new_v4().to_string();
+    let api_key = uuid::Uuid::new_v4().to_string();
+
+    // store tenant + api_key
+    create_tenant(&tenant_id, "pro").await;
+    create_api_key(&api_key, &tenant_id).await;
+
+    "ok"
+}
+
+Now:
+
+Stripe customer = tenant
+
+One checkout = infra provisioned
+
+Zero manual setup
+
+
+That’s leverage.
+
+
+---
+
+API Key resolution (middleware update)
+
+pub struct AuthContext {
+    pub tenant_id: String,
+}
+
+fn resolve_api_key(key: &str) -> AuthContext {
+    // lookup api_keys table
+    AuthContext { tenant_id }
+}
+
+Every request now auto-scopes to a tenant.
+
+You just unlocked multi-customer SaaS.
+
+
+---
+
+🧠 PART 3 — DASHBOARD (v1, brutally simple)
+
+Tech:
+
+Next.js (App Router)
+
+Tailwind
+
+Server actions
+
+
+You do NOT need polish. You need control.
+
+
+---
+
+Pages to build (only these)
+
+/login
+
+API key login (v1)
+
+JWT stored in cookie
+
+
+
+---
+
+/services
+
+Create service
+
+List services
+
+
+
+---
+
+/configs
+
+Select service + env
+
+Create / edit config
+
+Toggle “encrypted”
+
+Save → live update fires
+
+
+
+---
+
+/activity
+
+Stream of recent changes
+
+SSE-powered
+
+
+That’s it. Anything more is distraction.
+
+
+---
+
+Example: Create Config (frontend)
+
+await fetch("/api/configs", {
+  method: "POST",
+  body: JSON.stringify({
+    service,
+    env,
+    key,
+    value,
+    encrypted,
+  }),
+});
+
+Config saves →
+Config Hub broadcasts →
+Services reload live.
+
+That moment sells the product.
+
+
+---
+
+🧲 PART 4 — THE STICKY FLYWHEEL
+
+Once this exists, you can stack:
+
+GitHub Action:
+
+sync repo secrets → config hub
+
+
+Repo template:
+
+auto-connects SDK
+
+
+“envless deploy” docs
+
+Free tier for indie devs
+
+
+This turns Config Hub into default infrastructure, not a choice.
+
+
