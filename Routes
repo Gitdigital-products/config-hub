@@ -1,0 +1,15 @@
+src/routes/configs.rs
+
+use axum::{Json, extract::State};
+use crate::{models::ConfigItem, store::trait::ConfigStore};
+use std::sync::Arc;
+
+pub async fn set_config(
+    State(store): State<Arc<dyn ConfigStore>>,
+    Json(item): Json<ConfigItem>,
+) -> &'static str {
+    store.set(item).await.unwrap();
+    "ok"
+}
+
+You now have a real service, not a demo.
