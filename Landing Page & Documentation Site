@@ -1,0 +1,227 @@
+
+Create a separate directory for marketing site:
+
+```
+config-hub-landing/
+├── index.html
+├── styles.css
+├── script.js
+├── docs/
+│   ├── index.html
+│   ├── getting-started.md
+│   ├── api-reference.md
+│   └── examples/
+└── config.json
+```
+
+index.html (Main Landing Page)
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Config Hub | Centralized Configuration Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">
+                <i class="fas fa-cube"></i> Config Hub
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="/docs">Docs</a>
+                <a href="https://github.com/Gitdigital-products/config-hub">GitHub</a>
+                <a href="#get-started" class="btn-primary">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>Centralized Configuration for Modern Applications</h1>
+                <p class="subtitle">Manage, secure, and distribute configuration across all your services from a single source of truth.</p>
+                <div class="cta-buttons">
+                    <a href="#get-started" class="btn-primary btn-large">
+                        <i class="fas fa-rocket"></i> Start Free Trial
+                    </a>
+                    <a href="/docs" class="btn-secondary btn-large">
+                        <i class="fas fa-book"></i> Read Documentation
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">99.9%</span>
+                        <span class="stat-label">Uptime SLA</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">≤50ms</span>
+                        <span class="stat-label">Response Time</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">AES-256</span>
+                        <span class="stat-label">Encryption</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800" alt="Config Hub Dashboard">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Enterprise-Grade Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h3>Secret Auto-Rotation</h3>
+                    <p>Automatically rotate database credentials, API keys, and certificates without service downtime.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>End-to-End Encryption</h3>
+                    <p>All secrets encrypted at rest and in transit with AES-256 and automatic key management.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-sync-alt"></i>
+                    </div>
+                    <h3>Real-Time Updates</h3>
+                    <p>Push configuration changes to services instantly with WebSocket or Server-Sent Events.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-code-branch"></i>
+                    </div>
+                    <h3>GitOps Integration</h3>
+                    <p>Sync configuration with Git repositories and track changes with full audit history.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-cloud"></i>
+                    </div>
+                    <h3>Multi-Cloud Ready</h3>
+                    <p>Deploy on-premises, AWS, GCP, Azure, or hybrid environments with consistent APIs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Comprehensive Monitoring</h3>
+                    <p>Built-in metrics, logs, and alerts with Prometheus and Grafana integration.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <h2>Simple, Transparent Pricing</h2>
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3>Free</h3>
+                    <div class="price">$0<span>/month</span></div>
+                    <ul>
+                        <li>Up to 100 configuration keys</li>
+                        <li>Basic secret management</li>
+                        <li>Community support</li>
+                        <li>Self-hosted only</li>
+                    </ul>
+                    <a href="#" class="btn-secondary">Get Started</a>
+                </div>
+                <div class="pricing-card featured">
+                    <div class="badge">Most Popular</div>
+                    <h3>Team</h3>
+                    <div class="price">$99<span>/month</span></div>
+                    <ul>
+                        <li>Unlimited configuration keys</li>
+                        <li>Secret auto-rotation</li>
+                        <li>Priority support</li>
+                        <li>Multi-environment support</li>
+                        <li>Audit logs</li>
+                    </ul>
+                    <a href="#" class="btn-primary">Start Free Trial</a>
+                </div>
+                <div class="pricing-card">
+                    <h3>Enterprise</h3>
+                    <div class="price">Custom</div>
+                    <ul>
+                        <li>Everything in Team</li>
+                        <li>SLA guarantees</li>
+                        <li>Custom integrations</li>
+                        <li>Dedicated support</li>
+                        <li>On-prem deployment</li>
+                    </ul>
+                    <a href="#" class="btn-secondary">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Get Started -->
+    <section id="get-started" class="get-started">
+        <div class="container">
+            <h2>Get Started in Minutes</h2>
+            <div class="tabs">
+                <button class="tab active" data-tab="docker">Docker</button>
+                <button class="tab" data-tab="kubernetes">Kubernetes</button>
+                <button class="tab" data-tab="helm">Helm</button>
+            </div>
+            <div class="tab-content active" id="docker">
+                <pre><code># Docker Compose
+version: '3.8'
+services:
+  config-hub:
+    image: ghcr.io/gitdigital-products/config-hub:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/config_hub
+      - REDIS_URL=redis://redis:6379</code></pre>
+            </div>
+            <div class="tab-content" id="kubernetes">
+                <pre><code># Kubernetes Manifest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-hub
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: config-hub
+  template:
+    metadata:
+      labels:
+        app: config-hub</code></pre>
+            </div>
+            <div class="tab-content" id="helm">
+                <pre><code># Helm Installation
+helm repo add gitdigital https://charts.gitdigital.com
+helm install config-hub gitdigital/config-hub \
+  --set database.password=secret \
+  --set redis.password=secret</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>
+```
