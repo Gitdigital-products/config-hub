@@ -1,0 +1,18 @@
+Schema change
+
+ALTER TABLE configs ADD COLUMN tenant_id TEXT;
+
+Auth key maps to tenant
+
+pub struct ApiKey {
+    pub tenant_id: String,
+    pub scope: String,
+}
+
+Now:
+
+Stripe customer = tenant
+
+One deployment = many customers
+
+Margins go vertical
