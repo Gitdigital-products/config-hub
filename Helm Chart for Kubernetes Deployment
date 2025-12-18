@@ -1,0 +1,155 @@
+Create this directory structure:
+
+```
+config-hub/chart/
+├── Chart.yaml
+├── values.yaml
+├── templates/
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│   ├── configmap.yaml
+│   ├── secret.yaml
+│   └── _helpers.tpl
+└── README.md
+```
+
+Chart.yaml
+
+```yaml
+apiVersion: v2
+name: config-hub
+description: Centralized configuration server for Gitdigital apps
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.19.0-0"
+keywords:
+  - configuration
+  - secrets
+  - management
+  - microservices
+home: https://github.com/Gitdigital-products/config-hub
+sources:
+  - https://github.com/Gitdigital-products/config-hub
+maintainers:
+  - name: Gitdigital Team
+    email: team@gitdigital.com
+dependencies:
+  - name: postgresql
+    version: "~12.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "~17.0.0"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+```
+
+values.yaml
+
+```yaml
+# Default values for config-hub
+replicaCount: 3
+
+image:
+  repository: ghcr.io/gitdigital-products/config-hub
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 1000
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 8081
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: config-hub.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    memory: 512Mi
+  requests:
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+database:
+  type: postgresql
+  host: ""
+  port: 5432
+  name: config_hub
+  username: config_hub_user
+  password: ""
+
+redis:
+  enabled: true
+  host: ""
+  port: 6379
+  password: ""
+
+secrets:
+  encryptionMasterKey: ""
+  apiKeyHash: ""
+  jwtSecret: ""
+
+config:
+  logLevel: "info"
+  environment: "production"
+  enableMetrics: true
+  enableHealthChecks: true
+  secretRotationInterval: "24h"
+  auditLogRetentionDays: 90
+
+postgresql:
+  enabled: true
+  auth:
+    username: config_hub_user
+    password: ""
+    database: config_hub
+  persistence:
+    enabled: true
+    size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    password: ""
+  architecture: standalone
+```
