@@ -1,0 +1,24 @@
+Reshape the repo so logic is clean and testable:
+
+config-hub/
+├── src/
+│   ├── main.rs
+│   ├── app.rs          # server bootstrap
+│   ├── routes/
+│   │   ├── mod.rs
+│   │   └── configs.rs
+│   ├── store/
+│   │   ├── mod.rs
+│   │   ├── trait.rs
+│   │   └── sqlite.rs
+│   ├── auth/
+│   │   └── middleware.rs
+│   ├── crypto/
+│   │   └── encrypt.rs
+│   └── models.rs
+├── tests/
+├── Dockerfile
+├── .github/workflows/ci.yml
+└── Cargo.toml
+
+This separation is what lets you scale without refactoring hell later.
