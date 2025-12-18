@@ -1,0 +1,72 @@
+
+This is where leverage multiplies.
+
+Repo: config-hub-client
+
+Supports:
+
+Rust (first)
+
+Node / Bun (next)
+
+Python (later)
+
+
+Rust SDK (core)
+
+pub struct ConfigClient {
+    base_url: String,
+    api_key: String,
+}
+
+impl ConfigClient {
+    pub async fn get(
+        &self,
+        service: &str,
+        env: &str,
+        key: &str,
+    ) -> String {
+        reqwest::Client::new()
+            .get(format!(
+                "{}/configs/{}/{}/{}",
+                self.base_url, service, env, key
+            ))
+            .bearer_auth(&self.api_key)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap()
+    }
+}
+
+SSE live reload baked in
+
+pub async fn watch(
+    &self,
+    service: &str,
+    env: &str,
+    on_change: impl Fn(ConfigItem) + Send + 'static,
+) {
+    let url = format!("{}/watch/{}/{}", self.base_url, service, env);
+    let stream = reqwest_eventsource::EventSource::get(url);
+
+    while let Some(event) = stream.next().await {
+        if let Ok(Event::Message(msg)) = event {
+            let cfg: ConfigItem = serde_json::from_str(&msg.data).unwrap();
+            on_change(cfg);
+        }
+    }
+}
+
+Now every service gets:
+
+zero boilerplate
+
+same behavior
+
+same security
+
+
+This is platform consistency.
