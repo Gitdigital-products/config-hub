@@ -1,0 +1,9 @@
+#[derive(Serialize, Deserialize)]
+pub struct ConfigItem {
+    pub key: String,
+    pub value: String,
+    pub env: String,
+    pub service: String,
+    pub version: i32,
+    pub encrypted: bool,
+}
