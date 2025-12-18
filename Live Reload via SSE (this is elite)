@@ -1,0 +1,65 @@
+This is the “services auto-update without restarts” flex.
+
+Concept
+
+Clients open a connection: /watch/:service/:env
+
+When configs change → server pushes event
+
+App reloads config in memory instantly
+
+
+
+---
+
+Add a broadcast channel
+
+In app state:
+
+use tokio::sync::broadcast;
+
+pub struct AppState {
+    pub store: Arc<dyn ConfigStore>,
+    pub tx: broadcast::Sender<ConfigItem>,
+}
+
+On every set_config:
+
+let _ = state.tx.send(item.clone());
+
+
+---
+
+GET /watch/:service/:env
+
+use axum::{
+    extract::{Path, State},
+    response::sse::{Event, Sse},
+};
+use tokio_stream::wrappers::BroadcastStream;
+use futures_util::StreamExt;
+
+pub async fn watch_configs(
+    Path((service, env)): Path<(String, String)>,
+    State(state): State<AppState>,
+) -> Sse<impl futures_util::Stream<Item = Result<Event, axum::Error>>> {
+    let rx = state.tx.subscribe();
+
+    let stream = BroadcastStream::new(rx).filter_map(move |msg| {
+        match msg {
+            Ok(cfg) if cfg.service == service && cfg.env == env => {
+                Some(Ok(Event::default().json_data(cfg).unwrap()))
+            }
+            _ => None,
+        }
+    });
+
+    Sse::new(stream)
+}
+
+Now any service can do:
+
+curl http://config-hub/watch/ai-docs-writer/prod
+
+And receive live config changes.
+This is big tech behavior.
