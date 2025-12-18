@@ -1,0 +1,5 @@
+#[async_trait]
+pub trait ConfigStore {
+    async fn get(&self, key: &str, env: &str) -> Option<ConfigItem>;
+    async fn set(&self, item: ConfigItem) -> anyhow::Result<()>;
+}
