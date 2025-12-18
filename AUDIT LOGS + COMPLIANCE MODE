@@ -1,0 +1,210 @@
+## AUDIT LOGS + COMPLIANCE MODE
+
+What this unlocks (real-world)
+
+SOC2 conversations stop being scary
+
+Teams trust live reloads
+
+Rollbacks become trivial
+
+“Who broke prod?” gets answered in 3 seconds
+
+
+This is infrastructure adulthood.
+
+
+---
+
+PART 1 — AUDIT LOG SCHEMA (immutable truth)
+
+Add migration:
+
+CREATE TABLE audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  service TEXT NOT NULL,
+  env TEXT NOT NULL,
+  key TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  source TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_lookup
+ON audit_logs (tenant_id, service, env, key);
+
+Rules:
+
+never update audit logs
+
+never delete audit logs
+
+append only
+
+
+This table is sacred.
+
+
+---
+
+PART 2 — AUDIT CONTEXT (who did this?)
+
+Create a shared context extracted from auth middleware.
+
+pub struct AuditContext {
+    pub tenant_id: String,
+    pub actor: String,   // api_key id or user id
+    pub source: String,  // api | dashboard | github-action
+}
+
+Attach this to request state.
+
+
+---
+
+PART 3 — WRITE AUDIT LOGS ON EVERY CHANGE
+
+Inside set_config:
+
+let previous = state.store
+    .get_latest(&item.tenant_id, &item.service, &item.env, &item.key)
+    .await;
+
+write_audit_log(AuditLog {
+    tenant_id: item.tenant_id.clone(),
+    actor: ctx.actor,
+    action: "SET_CONFIG".into(),
+    service: item.service.clone(),
+    env: item.env.clone(),
+    key: item.key.clone(),
+    old_value: previous.map(|p| p.value),
+    new_value: Some(item.value.clone()),
+    source: ctx.source,
+});
+
+Now every mutation leaves fingerprints.
+
+
+---
+
+PART 4 — AUDIT LOG API (read-only)
+
+Expose:
+
+GET /audit/:service/:env
+GET /audit/:service/:env/:key
+
+Response example:
+
+{
+  "actor": "github-action",
+  "action": "SET_CONFIG",
+  "key": "STRIPE_KEY",
+  "source": "github",
+  "created_at": "2025-01-02T10:41:22Z"
+}
+
+No deletes.
+No edits.
+Only truth.
+
+
+---
+
+PART 5 — DASHBOARD: ACTIVITY VIEW
+
+Page: /activity
+
+Features:
+
+filter by service / env / key
+
+show actor + source
+
+timestamp
+
+diff view (masked for encrypted)
+
+
+This is the page execs love and engineers rely on.
+
+
+---
+
+PART 6 — COMPLIANCE MODE (simple but powerful)
+
+Add tenant flag:
+
+ALTER TABLE tenants ADD COLUMN compliance_mode BOOLEAN DEFAULT FALSE;
+
+When enabled:
+
+encryption required
+
+audit logs mandatory
+
+no plaintext values returned
+
+stricter rate limits
+
+config deletes disabled
+
+
+This becomes a paid feature.
+
+
+---
+
+PART 7 — ROLLBACK (the “oh sh*t” button)
+
+Endpoint:
+
+POST /rollback
+
+Payload:
+
+{
+  "tenant": "gitdigital",
+  "service": "ai-docs-writer",
+  "env": "prod",
+  "key": "STRIPE_KEY",
+  "version": 12
+}
+
+Implementation:
+
+fetch historical value
+
+write new config
+
+log rollback event
+
+broadcast update
+
+
+Rollback without redeploys is elite ops.
+
+
+---
+
+Why this drop matters (mentor moment)
+
+Infra isn’t impressive when it works.
+It’s impressive when it fails safely.
+
+Audit logs + rollback turn live reload from a risk into a superpower.
+
+You now have:
+
+velocity
+
+safety
+
+accountability
+
+
+That’s the holy trinity.
