@@ -1,0 +1,437 @@
+Create GitHub repository templates:
+
+config-hub-client-template/
+
+```
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       └── deploy.yml
+├── src/
+│   ├── config/
+│   │   └── client.rs
+│   └── main.rs
+├── Cargo.toml
+├── docker-compose.yml
+├── k8s/
+│   └── deployment.yaml
+└── README.md
+```
+
+.github/workflows/ci.yml
+
+```yaml
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests
+        run: cargo test --verbose
+      
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run cargo audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+      
+      - name: Run cargo-deny
+        run: |
+          cargo install cargo-deny
+          cargo deny check
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      config-hub:
+        image: ghcr.io/gitdigital-products/config-hub:latest
+        ports:
+          - 8080:8080
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+      
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Wait for services
+        run: |
+          sleep 10
+          curl --retry 10 --retry-delay 5 --retry-connrefused http://localhost:8080/health
+      
+      - name: Run integration tests
+        run: |
+          export CONFIG_HUB_URL=http://localhost:8080
+          export CONFIG_HUB_API_KEY=${{ secrets.TEST_API_KEY }}
+          cargo test --test integration -- --nocapture
+```
+
+src/config/client.rs
+
+```rust
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tokio::time::{interval, Duration};
+use tracing::{info, warn, error};
+
+#[derive(Debug, Clone)]
+pub struct ConfigHubClient {
+    client: Client,
+    base_url: String,
+    api_key: String,
+    cache: Arc<RwLock<HashMap<String, ConfigValue>>>,
+    environment: String,
+    service_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigValue {
+    pub key: String,
+    pub value: serde_json::Value,
+    pub version: i32,
+    pub is_secret: bool,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl ConfigHubClient {
+    pub fn new(
+        base_url: String,
+        api_key: String,
+        environment: String,
+        service_name: String,
+    ) -> Self {
+        Self {
+            client: Client::new(),
+            base_url,
+            api_key,
+            cache: Arc::new(RwLock::new(HashMap::new())),
+            environment,
+            service_name,
+        }
+    }
+
+    pub async fn initialize(&self) -> anyhow::Result<()> {
+        info!("Initializing Config Hub client for service: {}", self.service_name);
+        
+        // Fetch initial configuration
+        self.refresh_config().await?;
+        
+        // Start background refresh
+        self.start_background_refresh();
+        
+        // Start SSE listener for real-time updates
+        self.start_sse_listener().await?;
+        
+        info!("Config Hub client initialized successfully");
+        Ok(())
+    }
+
+    pub async fn get(&self, key: &str) -> anyhow::Result<Option<serde_json::Value>> {
+        // Check cache first
+        {
+            let cache = self.cache.read().await;
+            if let Some(config) = cache.get(key) {
+                return Ok(Some(config.value.clone()));
+            }
+        }
+        
+        // Fetch from server
+        let value = self.fetch_from_server(key).await?;
+        if let Some(value) = &value {
+            let mut cache = self.cache.write().await;
+            cache.insert(key.to_string(), ConfigValue {
+                key: key.to_string(),
+                value: value.clone(),
+                version: 1,
+                is_secret: false,
+                updated_at: chrono::Utc::now(),
+            });
+        }
+        
+        Ok(value)
+    }
+
+    pub async fn get_secret(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let url = format!("{}/api/v1/secrets/{}", self.base_url, key);
+        
+        let response = self.client
+            .get(&url)
+            .header("X-API-Key", &self.api_key)
+            .header("X-Environment", &self.environment)
+            .header("X-Service-Name", &self.service_name)
+            .send()
+            .await?;
+        
+        if response.status().is_success() {
+            let secret: SecretResponse = response.json().await?;
+            Ok(Some(secret.value))
+        } else if response.status() == 404 {
+            Ok(None)
+        } else {
+            Err(anyhow::anyhow!("Failed to fetch secret: {}", response.status()))
+        }
+    }
+
+    async fn refresh_config(&self) -> anyhow::Result<()> {
+        info!("Refreshing configuration from Config Hub");
+        
+        let url = format!("{}/api/v1/config/batch", self.base_url);
+        
+        let response = self.client
+            .post(&url)
+            .header("X-API-Key", &self.api_key)
+            .header("X-Environment", &self.environment)
+            .header("X-Service-Name", &self.service_name)
+            .json(&BatchRequest {
+                service: self.service_name.clone(),
+                environment: self.environment.clone(),
+            })
+            .send()
+            .await?;
+        
+        if response.status().is_success() {
+            let configs: Vec<ConfigValue> = response.json().await?;
+            
+            let mut cache = self.cache.write().await;
+            cache.clear();
+            
+            for config in configs {
+                cache.insert(config.key.clone(), config);
+            }
+            
+            info!("Refreshed {} configuration values", cache.len());
+        } else {
+            warn!("Failed to refresh configuration: {}", response.status());
+        }
+        
+        Ok(())
+    }
+
+    fn start_background_refresh(&self) {
+        let client = self.clone();
+        
+        tokio::spawn(async move {
+            let mut interval = interval(Duration::from_secs(300)); // Every 5 minutes
+            
+            loop {
+                interval.tick().await;
+                
+                if let Err(e) = client.refresh_config().await {
+                    error!("Background config refresh failed: {}", e);
+                }
+            }
+        });
+    }
+
+    async fn start_sse_listener(&self) -> anyhow::Result<()> {
+        let url = format!("{}/api/v1/events", self.base_url);
+        let client = self.client.clone();
+        let api_key = self.api_key.clone();
+        let cache = self.cache.clone();
+        
+        tokio::spawn(async move {
+            let mut retry_count = 0;
+            
+            loop {
+                match Self::connect_sse(&client, &url, &api_key).await {
+                    Ok(mut stream) => {
+                        retry_count = 0;
+                        
+                        while let Some(event) = stream.next().await {
+                            match event {
+                                Ok(sse::Event::Message(msg)) => {
+                                    if let Ok(update) = serde_json::from_str::<ConfigUpdate>(&msg.data) {
+                                        let mut cache = cache.write().await;
+                                        cache.insert(update.key, update.value);
+                                        info!("Updated config from SSE: {}", update.key);
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("SSE error: {}", e);
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to connect to SSE: {}", e);
+                        retry_count += 1;
+                        
+                        let delay = std::cmp::min(30, retry_count * 5);
+                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                    }
+                }
+            }
+        });
+        
+        Ok(())
+    }
+}
+```
+
+docker-compose.yml (Client Template)
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    environment:
+      - CONFIG_HUB_URL=${CONFIG_HUB_URL:-http://config-hub:8080}
+      - CONFIG_HUB_API_KEY=${CONFIG_HUB_API_KEY}
+      - CONFIG_HUB_ENVIRONMENT=${ENVIRONMENT:-development}
+      - CONFIG_HUB_SERVICE_NAME=${SERVICE_NAME}
+      - RUST_LOG=info
+    depends_on:
+      - config-hub
+  
+  config-hub:
+    image: ghcr.io/gitdigital-products/config-hub:latest
+    environment:
+      - DATABASE_URL=postgresql://config_hub_user:${DB_PASSWORD}@db:5432/config_hub
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+    ports:
+      - "8080:8080"
+  
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=config_hub
+      - POSTGRES_USER=config_hub_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+🚀 Deployment Instructions
+
+1. Deploy Config Hub
+
+```bash
+# Clone the repository
+git clone https://github.com/Gitdigital-products/config-hub
+cd config-hub
+
+# Deploy with Docker Compose
+docker-compose up -d
+
+# Or deploy with Helm
+helm install config-hub ./chart \
+  --set database.password=your_password \
+  --set redis.password=your_password \
+  --set secrets.encryptionMasterKey=$(openssl rand -base64 32) \
+  --set secrets.apiKeyHash=$(echo -n "your_api_key" | sha256sum | cut -d' ' -f1)
+```
+
+2. Set Up Landing Page
+
+```bash
+# Clone landing page repo
+git clone https://github.com/Gitdigital-products/config-hub-landing
+cd config-hub-landing
+
+# Deploy to Netlify/Vercel
+npm install -g netlify-cli
+netlify deploy --prod
+```
+
+3. Use Client Template
+
+```bash
+# Create new service using template
+git clone https://github.com/Gitdigital-products/config-hub-client-template my-service
+cd my-service
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your Config Hub details
+
+# Run with Docker
+docker-compose up -d
+```
+
+4. Configure Secret Rotation
+
+1. Enable rotation in Config Hub settings
+2. Configure rotation intervals for each secret type
+3. Set up notifications for rotation events
+4. Monitor rotation logs in dashboard
+
+🔒 Security Considerations
+
+1. Encryption Keys: Store encryption master key in secure key manager (HashiCorp Vault, AWS KMS, GCP KMS)
+2. API Keys: Rotate API keys regularly using the auto-rotation engine
+3. Network Security: Use mutual TLS for all internal communications
+4. Audit Logging: Enable comprehensive audit logs for all configuration changes
+5. Access Control: Implement RBAC with fine-grained permissions
+
+📊 Monitoring Setup
+
+1. Prometheus Metrics: Config Hub exposes metrics at /metrics
+2. Grafana Dashboards: Use provided dashboard templates
+3. Alerting: Configure alerts for:
+   · Failed secret rotations
+   · High latency
+   · Authentication failures
+   · Storage quota warnings
