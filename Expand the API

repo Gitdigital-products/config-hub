@@ -1,0 +1,12 @@
+Required endpoints
+
+POST   /configs
+GET    /configs/:service/:env/:key
+GET    /configs?service=&env=
+DELETE /configs/:service/:env/:key
+
+Bonus (high leverage)
+
+GET /watch/:service/:env  (long‑poll / SSE)
+
+This lets services auto‑reload config changes.
