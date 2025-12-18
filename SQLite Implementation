@@ -1,0 +1,60 @@
+Add deps:
+
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio"] }
+async-trait = "0.1"
+anyhow = "1.0"
+
+src/store/sqlite.rs
+
+use sqlx::SqlitePool;
+use crate::{models::ConfigItem, store::trait::ConfigStore};
+use async_trait::async_trait;
+
+pub struct SqliteStore {
+    pub pool: SqlitePool,
+}
+
+#[async_trait]
+impl ConfigStore for SqliteStore {
+    async fn get(&self, service: &str, env: &str, key: &str) -> Option<ConfigItem> {
+        sqlx::query_as!(
+            ConfigItem,
+            r#"
+            SELECT key, value, env, service, version, encrypted
+            FROM configs
+            WHERE service = ? AND env = ? AND key = ?
+            ORDER BY version DESC
+            LIMIT 1
+            "#,
+            service,
+            env,
+            key
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten()
+    }
+
+    async fn set(&self, item: ConfigItem) -> anyhow::Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO configs (key, value, env, service, version, encrypted)
+            VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+            item.key,
+            item.value,
+            item.env,
+            item.service,
+            item.version,
+            item.encrypted
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+}
+
+At this point:
+Restarting the server no longer nukes your configs. Huge milestone.
