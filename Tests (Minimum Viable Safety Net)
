@@ -1,0 +1,17 @@
+Unit tests
+
+config serialization
+
+encryption / decryption
+
+
+Integration tests
+
+spin server
+
+POST config
+
+GET config
+
+
+Rust makes this clean if you keep logic out of handlers.
