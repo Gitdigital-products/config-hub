@@ -1,0 +1,23 @@
+src/auth/middleware.rs
+
+use axum::{
+    http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
+};
+
+pub async fn api_key_auth<B>(
+    req: Request<B>,
+    next: Next<B>,
+) -> Result<Response, StatusCode> {
+    let expected = std::env::var("CONFIG_HUB_API_KEY").unwrap();
+
+    match req.headers().get("Authorization") {
+        Some(h) if h == format!("Bearer {}", expected).as_str() => {
+            Ok(next.run(req).await)
+        }
+        _ => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+Minimal. Effective. Upgradeable later.
