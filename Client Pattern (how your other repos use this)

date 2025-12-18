@@ -1,0 +1,22 @@
+Every GitDigital service should:
+
+1. Fetch config at startup
+
+
+2. Keep in-memory map
+
+
+3. Subscribe to /watch
+
+
+4. Hot-reload on change
+
+
+
+This eliminates:
+
+redeploys for config
+
+env var juggling
+
+secrets sprawl
