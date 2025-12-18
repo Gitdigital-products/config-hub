@@ -1,0 +1,9 @@
+{
+  "key": "DATABASE_URL",
+  "value": "postgres://...",
+  "env": "production",
+  "service": "ai-docs-writer",
+  "version": 3,
+  "encrypted": true,
+  "updated_at": "2025-01-01T00:00:00Z"
+}
