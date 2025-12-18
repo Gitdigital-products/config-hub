@@ -1,0 +1,15 @@
+src/models.rs
+
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConfigItem {
+    pub key: String,
+    pub value: String,
+    pub env: String,
+    pub service: String,
+    pub version: i32,
+    pub encrypted: bool,
+}
+
+This is the spine. Everything else plugs into this.
