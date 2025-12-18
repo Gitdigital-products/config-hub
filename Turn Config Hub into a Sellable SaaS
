@@ -1,0 +1,70 @@
+This is where founders separate from builders.
+
+Rename (optional but smart)
+
+Config Hub → Envless
+
+or GhostConfig
+
+or LiveConfig
+
+
+Name idea vibe: “no env vars, no redeploys, no pain”
+
+
+---
+
+Pricing tiers (dead simple, high margin)
+
+Free
+
+1 service
+
+1 environment
+
+50 configs
+
+no encryption
+
+
+Pro – $15/mo
+
+5 services
+
+unlimited configs
+
+encrypted secrets
+
+live reload
+
+
+Team – $49/mo
+
+unlimited services
+
+RBAC
+
+audit logs
+
+GitHub sync
+
+
+Enterprise
+
+self-hosted
+
+SLA
+
+custom auth
+
+
+This competes directly with:
+
+Doppler
+
+EnvKey
+
+partial Vault use cases
+
+
+…but simpler and dev-first.
