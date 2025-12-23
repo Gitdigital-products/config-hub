@@ -14,3 +14,6 @@ Keeps all service configs in one place so nothing is hardcoded.
 ## 🛠️ Setup
 ```bash
 cargo run
+# Config Hub
+
+**Mission:** A centralized configuration server providing a single source of truth for application settings and feature flags across all Gitdigital-products services. It is for DevOps and development teams to ensure consistent deployment and management. *(Stage: Core Infrastructure)*
